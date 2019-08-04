@@ -11,18 +11,6 @@ import Svg.Attributes as Attrs
 import Time exposing (Posix)
 
 
-centerX =
-    300
-
-
-centerY =
-    300
-
-
-totalSteps =
-    1000
-
-
 type Msg
     = NextStep Posix
     | OnMouseDown
