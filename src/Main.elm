@@ -24,6 +24,8 @@ type alias Model =
     , timeStep : Float
     , epis : List EpicycleInfo
     , path : List Complex
+
+    -- This value is cached in the model since it is expensive to compute
     , epicycles : List Epicycle
     }
 
