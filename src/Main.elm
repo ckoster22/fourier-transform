@@ -79,11 +79,15 @@ subscriptions model =
 initialModel : Model
 initialModel =
     { mode = Animating
-    , handDrawnPoints = []
+    , handDrawnPoints = squarePoints
     , timeStep = 0
     , epis = []
     , path = []
-    , epicycles = []
+    , epicycles =
+        squarePoints
+            |> Fourier.dft
+            |> List.sortBy .amplitude
+            |> List.reverse
     }
 
 
@@ -94,7 +98,13 @@ update msg ({ handDrawnPoints } as model) =
             ( updateAnimation model, Cmd.none )
 
         OnMouseDown ->
-            ( { initialModel | mode = Drawing }, Cmd.none )
+            ( { initialModel
+                | mode = Drawing
+                , handDrawnPoints = []
+                , epicycles = []
+              }
+            , Cmd.none
+            )
 
         OnMouseMove x y ->
             ( addDrawPoints x y model, Cmd.none )
@@ -152,8 +162,8 @@ addDrawPoints x y model =
 view : Model -> Html Msg
 view { mode, timeStep, epis, path, handDrawnPoints } =
     Svg.svg
-        [ Attrs.width "1000"
-        , Attrs.height "1000"
+        [ Attrs.width "600"
+        , Attrs.height "600"
         ]
         (case mode of
             Drawing ->
@@ -218,3 +228,22 @@ epicycleView info =
     [ circle ( String.fromFloat info.cx, String.fromFloat info.cy ) (String.fromFloat info.radius) "gray" "0.4"
     , line ( String.fromFloat info.cx, String.fromFloat info.cy ) ( String.fromFloat info.tx, String.fromFloat info.ty )
     ]
+
+
+squarePoints : List Complex
+squarePoints =
+    let
+        xs =
+            List.repeat 50 0
+                |> List.indexedMap (\index _ -> 100 + toFloat index * 5)
+
+        ys =
+            List.repeat 50 0
+                |> List.indexedMap (\index _ -> 100 + toFloat index * 5)
+    in
+    List.concat
+        [ xs |> List.map (\x -> Complex.new ( x, 100 ))
+        , ys |> List.map (\y -> Complex.new ( 350, y ))
+        , xs |> List.reverse |> List.map (\x -> Complex.new ( x, 350 ))
+        , ys |> List.reverse |> List.map (\y -> Complex.new ( 100, y ))
+        ]
