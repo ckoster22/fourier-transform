@@ -24,6 +24,7 @@ type alias Model =
     , timeStep : Float
     , epis : List EpicycleInfo
     , path : List Complex
+    , epicycles : List Epicycle
     }
 
 
@@ -70,6 +71,11 @@ initialModel =
     , timeStep = 0
     , epis = []
     , path = []
+    , epicycles =
+        squarePoints
+            |> Fourier.dft
+            |> List.sortBy .amplitude
+            |> List.reverse
     }
 
 
@@ -83,6 +89,7 @@ update msg ({ handDrawnPoints } as model) =
             ( { initialModel
                 | mode = Drawing
                 , handDrawnPoints = []
+                , epicycles = []
               }
             , Cmd.none
             )
@@ -91,11 +98,20 @@ update msg ({ handDrawnPoints } as model) =
             ( addDrawPoints x y model, Cmd.none )
 
         OnMouseUp ->
-            ( { model | mode = Animating }, Cmd.none )
+            ( { model
+                | mode = Animating
+                , epicycles =
+                    handDrawnPoints
+                        |> Fourier.dft
+                        |> List.sortBy .amplitude
+                        |> List.reverse
+              }
+            , Cmd.none
+            )
 
 
 updateAnimation : Model -> Model
-updateAnimation ({ timeStep, path, handDrawnPoints } as model) =
+updateAnimation ({ timeStep, path, handDrawnPoints, epicycles } as model) =
     let
         nextTime =
             timeStep + (2 * pi / toFloat (List.length handDrawnPoints))
@@ -108,11 +124,7 @@ updateAnimation ({ timeStep, path, handDrawnPoints } as model) =
                 nextTime
 
         epis =
-            handDrawnPoints
-                |> Fourier.dft
-                |> List.sortBy .amplitude
-                |> List.reverse
-                |> Fourier.epicycleInfo finalTime
+            Fourier.epicycleInfo finalTime epicycles
 
         nextPath =
             epis
