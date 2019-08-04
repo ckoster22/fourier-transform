@@ -61,8 +61,8 @@ newEpicycle freq vector =
     }
 
 
-epicycleInfo : ( Float, Float ) -> Float -> List Epicycle -> List EpicycleInfo
-epicycleInfo ( centerX, centerY ) timeStep =
+epicycleInfo : Float -> List Epicycle -> List EpicycleInfo
+epicycleInfo timeStep =
     .epis
         << List.foldl
             (\{ freq, amplitude, phase } acc ->
@@ -87,7 +87,7 @@ epicycleInfo ( centerX, centerY ) timeStep =
                         ]
                 }
             )
-            { x = centerX
-            , y = centerY
+            { x = 0
+            , y = 0
             , epis = []
             }

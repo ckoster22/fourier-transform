@@ -1,10 +1,11 @@
 module Main exposing (main)
 
 import Browser
-import Browser.Events
+import Browser.Events exposing (onMouseDown, onMouseMove, onMouseUp)
 import Complex exposing (Complex)
 import Fourier exposing (Epicycle, EpicycleInfo)
 import Html exposing (Html, button, div, text)
+import Json.Decode as Decode
 import Svg exposing (Svg)
 import Svg.Attributes as Attrs
 import Time exposing (Posix)
@@ -24,112 +25,98 @@ totalSteps =
 
 type Msg
     = NextStep Posix
+    | OnMouseDown
+    | OnMouseMove Int Int
+    | OnMouseUp
 
 
 type alias Model =
-    { timeStep : Float
+    { mode : Mode
+    , handDrawnPoints : List Complex
+    , timeStep : Float
     , epis : List EpicycleInfo
     , path : List Complex
+    , epicycles : List Epicycle
     }
+
+
+type Mode
+    = Drawing
+    | Animating
 
 
 main : Program () Model Msg
 main =
     Browser.element
-        { init = \_ -> ( { timeStep = 0, epis = [], path = [] }, Cmd.none )
+        { init = \_ -> ( initialModel, Cmd.none )
         , view = view
         , update = update
-        , subscriptions = \_ -> Time.every 100 NextStep
+        , subscriptions = subscriptions
         }
 
 
-points : List Complex
-points =
-    [ Complex.new ( 10, 10 )
-    , Complex.new ( 20, 10 )
-    , Complex.new ( 30, 10 )
-    , Complex.new ( 40, 10 )
-    , Complex.new ( 50, 10 )
-    , Complex.new ( 60, 10 )
-    , Complex.new ( 70, 10 )
-    , Complex.new ( 80, 10 )
-    , Complex.new ( 90, 10 )
-    , Complex.new ( 100, 10 )
-    , Complex.new ( 110, 10 )
-    , Complex.new ( 120, 10 )
-    , Complex.new ( 130, 10 )
-    , Complex.new ( 140, 10 )
-    , Complex.new ( 150, 10 )
-    , Complex.new ( 160, 10 )
-    , Complex.new ( 170, 10 )
-    , Complex.new ( 180, 10 )
-    , Complex.new ( 190, 10 )
-    , Complex.new ( 200, 10 )
-    , Complex.new ( 210, 10 )
-    , Complex.new ( 220, 10 )
-    , Complex.new ( 230, 10 )
-    , Complex.new ( 240, 10 )
-    , Complex.new ( 250, 10 )
-    , Complex.new ( 260, 10 )
-    , Complex.new ( 270, 10 )
-    , Complex.new ( 280, 10 )
-    , Complex.new ( 290, 10 )
-    , Complex.new ( 300, 10 )
-    , Complex.new ( 310, 10 )
-    , Complex.new ( 320, 10 )
-    , Complex.new ( 330, 10 )
-    , Complex.new ( 340, 10 )
-    , Complex.new ( 350, 10 )
-    , Complex.new ( 350, 20 )
-    , Complex.new ( 350, 30 )
-    , Complex.new ( 350, 40 )
-    , Complex.new ( 350, 50 )
-    , Complex.new ( 350, 60 )
-    , Complex.new ( 350, 70 )
-    , Complex.new ( 350, 80 )
-    , Complex.new ( 350, 90 )
-    , Complex.new ( 350, 100 )
-    , Complex.new ( 350, 110 )
-    , Complex.new ( 350, 120 )
-    , Complex.new ( 350, 130 )
-    , Complex.new ( 350, 140 )
-    , Complex.new ( 350, 150 )
-    , Complex.new ( 350, 160 )
-    , Complex.new ( 350, 170 )
-    , Complex.new ( 350, 180 )
-    , Complex.new ( 350, 190 )
-    , Complex.new ( 350, 200 )
-    , Complex.new ( 350, 210 )
-    , Complex.new ( 350, 220 )
-    , Complex.new ( 350, 230 )
-    , Complex.new ( 350, 240 )
-    , Complex.new ( 350, 250 )
-    , Complex.new ( 350, 260 )
-    , Complex.new ( 350, 270 )
-    , Complex.new ( 350, 280 )
-    , Complex.new ( 350, 290 )
-    , Complex.new ( 350, 300 )
-    , Complex.new ( 350, 310 )
-    , Complex.new ( 350, 320 )
-    , Complex.new ( 350, 330 )
-    , Complex.new ( 350, 340 )
-    , Complex.new ( 350, 350 )
-    ]
+subscriptions : Model -> Sub Msg
+subscriptions model =
+    case model.mode of
+        Drawing ->
+            Sub.batch
+                [ onMouseMove
+                    (Decode.map2
+                        OnMouseMove
+                        (Decode.field "pageX" Decode.int)
+                        (Decode.field "pageY" Decode.int)
+                    )
+                , onMouseUp (Decode.succeed OnMouseUp)
+                ]
+
+        Animating ->
+            Sub.batch
+                [ Time.every 30 NextStep
+                , onMouseDown (Decode.succeed OnMouseDown)
+                ]
 
 
-epicycles : List Epicycle
-epicycles =
-    points
-        |> Fourier.dft
-        |> List.sortBy .amplitude
-        |> List.reverse
+initialModel : Model
+initialModel =
+    { mode = Animating
+    , handDrawnPoints = []
+    , timeStep = 0
+    , epis = []
+    , path = []
+    , epicycles = []
+    }
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
-update (NextStep _) ({ timeStep, path } as model) =
+update msg ({ handDrawnPoints } as model) =
+    case msg of
+        NextStep _ ->
+            ( updateAnimation model, Cmd.none )
+
+        OnMouseDown ->
+            ( { initialModel | mode = Drawing }, Cmd.none )
+
+        OnMouseMove x y ->
+            ( addDrawPoints x y model, Cmd.none )
+
+        OnMouseUp ->
+            ( { model
+                | mode = Animating
+                , epicycles =
+                    handDrawnPoints
+                        |> Fourier.dft
+                        |> List.sortBy .amplitude
+                        |> List.reverse
+              }
+            , Cmd.none
+            )
+
+
+updateAnimation : Model -> Model
+updateAnimation ({ timeStep, path, handDrawnPoints, epicycles } as model) =
     let
         nextTime =
-            timeStep + (2 * pi / toFloat (List.length points))
+            timeStep + (2 * pi / toFloat (List.length handDrawnPoints))
 
         finalTime =
             if nextTime > 2 * pi then
@@ -139,34 +126,63 @@ update (NextStep _) ({ timeStep, path } as model) =
                 nextTime
 
         epis =
-            Fourier.epicycleInfo ( centerX, centerY ) finalTime epicycles
+            Fourier.epicycleInfo finalTime epicycles
 
         nextPath =
             epis
                 |> List.reverse
                 |> List.head
                 |> Maybe.map (\epicycle -> List.append path [ Complex.new ( epicycle.tx, epicycle.ty ) ])
-                |> Maybe.map (List.take totalSteps)
+                |> Maybe.map (List.take (List.length handDrawnPoints))
                 |> Maybe.withDefault path
     in
-    ( { model | timeStep = finalTime, epis = epis, path = nextPath }, Cmd.none )
+    { model | timeStep = finalTime, epis = epis, path = nextPath }
+
+
+addDrawPoints : Int -> Int -> Model -> Model
+addDrawPoints x y model =
+    { model
+        | handDrawnPoints =
+            List.append
+                model.handDrawnPoints
+                [ Complex.new ( toFloat x, toFloat y ) ]
+    }
 
 
 view : Model -> Html Msg
-view { timeStep, epis, path } =
+view { mode, timeStep, epis, path, handDrawnPoints } =
     Svg.svg
         [ Attrs.width "1000"
         , Attrs.height "1000"
         ]
-        [ epis
-            |> List.map epicycleView
-            |> List.concat
-            |> Svg.g []
-        , path
-            |> List.map Complex.toCartesian
-            |> List.map (\( x, y ) -> circle ( String.fromFloat x, String.fromFloat y ) "1" "red" "1")
-            |> Svg.g []
-        ]
+        (case mode of
+            Drawing ->
+                [ handDrawnPoints
+                    |> List.map Complex.toCartesian
+                    |> List.map (\( x, y ) -> circle ( String.fromFloat x, String.fromFloat y ) "2" "blue" "1")
+                    |> Svg.g []
+                ]
+
+            Animating ->
+                [ handDrawnPoints
+                    |> List.map Complex.toCartesian
+                    |> List.map (\( x, y ) -> circle ( String.fromFloat x, String.fromFloat y ) "2" "blue" "1")
+                    |> Svg.g []
+                , case epis of
+                    _ :: rest ->
+                        rest
+                            |> List.map epicycleView
+                            |> List.concat
+                            |> Svg.g []
+
+                    _ ->
+                        Html.text ""
+                , path
+                    |> List.map Complex.toCartesian
+                    |> List.map (\( x, y ) -> circle ( String.fromFloat x, String.fromFloat y ) "1" "red" "1")
+                    |> Svg.g []
+                ]
+        )
 
 
 line : ( String, String ) -> ( String, String ) -> Html Msg
