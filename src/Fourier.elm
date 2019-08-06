@@ -78,11 +78,11 @@ epicycleInfo timeStep =
                 , epis =
                     List.append
                         acc.epis
-                        [ { cx = acc.x
-                          , cy = acc.y
-                          , tx = nextX
-                          , ty = nextY
-                          , radius = amplitude * 2
+                        [ { cx = nextX
+                          , cy = nextY
+                          , tx = acc.x
+                          , ty = acc.y
+                          , radius = amplitude
                           }
                         ]
                 }
